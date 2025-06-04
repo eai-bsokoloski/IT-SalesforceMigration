@@ -26,9 +26,9 @@ def process_phone_data(phone_file_path):
                     phone_data[contact_id]['fax'] = phone_number
                 else:
                     if phone_type == 'office':
-                        phone_data[contact_id]['others'].append(f"O({phone_number})")
+                        phone_data[contact_id]['others'].append(f"Office ({phone_number})")
                     elif phone_type == 'mill':
-                        phone_data[contact_id]['others'].append(f"M({phone_number})")
+                        phone_data[contact_id]['others'].append(f"Mill ({phone_number})")
                     else:
                         phone_data[contact_id]['others'].append(f"{phone_type} ({phone_number})")
     except Exception as e:
@@ -36,12 +36,27 @@ def process_phone_data(phone_file_path):
     
     return phone_data
 
-def update_and_write_contacts(customer_file_path, phone_data, output_file_path):
-    """Update contact data with phone information and write to output."""
+def process_customer_data(customer_data_file):
+    """Read and organize customer data by Company Name."""
+    customer_data = {}
+    try:
+        with open(customer_data_file, 'r', newline='') as customer_file:
+            customer_reader = csv.DictReader(customer_file)
+            for row in customer_reader:
+                company_name = row['Company Name'].strip()
+                customer_id = row['Customer ID']
+                customer_data[company_name] = customer_id
+    except Exception as e:
+        raise RuntimeError(f"Error processing customer data from {customer_data_file}: {str(e)}")
+    
+    return customer_data
+
+def update_and_write_contacts(customer_file_path, phone_data, customer_data, output_file_path):
+    """Update contact data with phone and customer information and write to output."""
     fieldnames = [
         'ContactID', 'Email', 'First Name', 'Last Name', 'Middle Name',
         'Organization', 'Title', 'Other Phones', 'Mobile', 'Fax',
-        'Mailing Street', 'Mailing City', 'Mailing State/Province',
+        'Customer ID', 'Mailing Street', 'Mailing City', 'Mailing State/Province',
         'Mailing Zip/Postal Code', 'Mailing Country'
     ]
     
@@ -55,12 +70,16 @@ def update_and_write_contacts(customer_file_path, phone_data, output_file_path):
                 
                 for row in customer_reader:
                     contact_id = row['ContactID']
+                    organization = row.get('Organization', '').strip()
                     
                     # Update phone data
                     phone_info = phone_data.get(contact_id, {'mobile': '', 'fax': '', 'others': []})
                     mobile = phone_info['mobile']
                     fax = phone_info['fax']
                     other_phones = ';'.join(phone_info['others']) if phone_info['others'] else ''
+                    
+                    # Get Customer ID
+                    customer_id = customer_data.get(organization, '')
                     
                     # Create new row with only the specified fieldnames
                     new_row = {
@@ -69,11 +88,12 @@ def update_and_write_contacts(customer_file_path, phone_data, output_file_path):
                         'First Name': row.get('First Name', ''),
                         'Last Name': row.get('Last Name', ''),
                         'Middle Name': row.get('Middle Name', ''),
-                        'Organization': row.get('Organization', ''),
+                        'Organization': organization,
                         'Title': row.get('Title', ''),
                         'Other Phones': other_phones,
                         'Mobile': mobile,
                         'Fax': fax,
+                        'Customer ID': customer_id,
                         'Mailing Street': row.get('Mailing Street', ''),
                         'Mailing City': row.get('Mailing City', ''),
                         'Mailing State/Province': row.get('Mailing State/Province', ''),
@@ -89,15 +109,17 @@ def main():
     """Main function to orchestrate the processing."""
     phone_file = 'SF Contact Phones.csv'
     customer_file = 'SF Contacts.csv'
+    customer_data_file = 'SF Customers.csv'
     output_file = 'SF Contacts_updated.csv'
     
     # Verify input files exist
-    for f in [phone_file, customer_file]:
+    for f in [phone_file, customer_file, customer_data_file]:
         ensure_file_exists(f)
     
     # Process data
     phone_data = process_phone_data(phone_file)
-    update_and_write_contacts(customer_file, phone_data, output_file)
+    customer_data = process_customer_data(customer_data_file)
+    update_and_write_contacts(customer_file, phone_data, customer_data, output_file)
     
     print(f"Successfully created {output_file}")
 
